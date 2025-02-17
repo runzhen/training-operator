@@ -66,7 +66,9 @@ class TrainerClient:
             if config_file or not utils.is_running_in_k8s():
                 config.load_kube_config(config_file=config_file, context=context)
             else:
-                config.load_incluster_config()
+                config.load_incluster_config(client_configuration)
+
+        print("client config: ", client_configuration)
 
         k8s_client = client.ApiClient(client_configuration)
         self.custom_api = client.CustomObjectsApi(k8s_client)
