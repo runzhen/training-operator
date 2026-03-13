@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	jobsetv1alpha2 "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 	jobsetconsts "sigs.k8s.io/jobset/pkg/constants"
 
 	trainer "github.com/kubeflow/trainer/v2/pkg/apis/trainer/v1alpha1"
@@ -361,6 +362,36 @@ var _ = ginkgo.Describe("TrainJob e2e", func() {
 					g.Expect(gotTrainJob.Spec.RuntimePatches[1].Manager).To(gomega.Equal("kueue.k8s.io/manager"))
 				}, util.Timeout, util.Interval).Should(gomega.Succeed())
 			})
+		})
+	})
+
+	ginkgo.When("Creating a TrainJob with Resource Timeouts", func() {
+		ginkgo.It("should fail the TrainJob with DeadlineExceeded when active timeout expires", func() {
+			deadline := int64(10)
+			trainJob := testingutil.MakeTrainJobWrapper(ns.Name, "e2e-deadline-job").
+				RuntimeRef(trainer.GroupVersion.WithKind(trainer.ClusterTrainingRuntimeKind), torchRuntime).
+				ActiveDeadlineSeconds(deadline).
+				Obj()
+
+			trainJob.Spec.Trainer = &trainer.Trainer{
+				Image:   ptr.To("busybox"),
+				Command: []string{"/bin/sh", "-c", "sleep 600"},
+			}
+			gomega.Expect(k8sClient.Create(ctx, trainJob)).Should(gomega.Succeed())
+
+			trainJobKey := client.ObjectKeyFromObject(trainJob)
+
+			ginkgo.By("Waiting for TrainJob to fail due to deadline")
+			gomega.Eventually(func(g gomega.Gomega) {
+				gotTrainJob := &trainer.TrainJob{}
+				g.Expect(k8sClient.Get(ctx, trainJobKey, gotTrainJob)).Should(gomega.Succeed())
+				g.Expect(gotTrainJob.Status.Conditions).Should(gomega.ContainElement(gomega.HaveField("Reason", trainer.TrainJobDeadlineExceededReason)))
+			}, util.TimeoutE2E, util.Interval).Should(gomega.Succeed())
+
+			ginkgo.By("Ensuring the underlying JobSet is deleted")
+			gomega.Eventually(func(g gomega.Gomega) {
+				g.Expect(k8sClient.Get(ctx, trainJobKey, &jobsetv1alpha2.JobSet{})).Should(testingutil.BeNotFoundError())
+			}, util.TimeoutE2E, util.Interval).Should(gomega.Succeed())
 		})
 	})
 })
