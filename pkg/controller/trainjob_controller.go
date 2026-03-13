@@ -141,7 +141,7 @@ func (r *TrainJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	if deadlineResult, deadlineErr := r.reconcileDeadline(ctx, &trainJob); deadlineErr != nil || deadlineResult.RequeueAfter > 0 {
-		if !equality.Semantic.DeepEqual(&trainJob.Status, prevTrainJob.Status) {
+		if !equality.Semantic.DeepEqual(&trainJob.Status, &prevTrainJob.Status) {
 			return deadlineResult, errors.Join(err, r.client.Status().Patch(ctx, &trainJob, client.MergeFrom(prevTrainJob)))
 		}
 		return deadlineResult, errors.Join(err, deadlineErr)

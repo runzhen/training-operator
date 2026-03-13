@@ -496,6 +496,18 @@ type TrainJobStatus struct {
 	// +kubebuilder:validation:MaxItems=100
 	// +optional
 	JobsStatus []JobStatus `json:"jobsStatus,omitempty"`
+
+	// trainerStatus contains the latest observed runtime status of the
+	// Trainer step of the TrainJob. It reflects progress, remaining time,
+	// metrics, and the last update timestamp.
+	//
+	// This field is nil if the TrainJob does not report trainer-level
+	// status, or if no status has been observed yet (for example,
+	// immediately after the TrainJob is created).
+	//
+	// This is an alpha feature and requires enabling the TrainJobStatus feature gate.
+	// +optional
+	TrainerStatus *TrainerStatus `json:"trainerStatus,omitempty"`
 }
 
 type JobStatus struct {
@@ -531,6 +543,68 @@ type JobStatus struct {
 	// +kubebuilder:validation:Minimum=0
 	// +required
 	Suspended *int32 `json:"suspended,omitempty"`
+}
+
+// TrainerStatus represents the latest known runtime status of the Trainer step of the TrainJob.
+// +kubebuilder:validation:XValidation:rule="has(self.lastUpdatedTime)",message="lastUpdatedTime is required when trainerStatus is present"
+type TrainerStatus struct {
+
+	// progressPercentage gives an estimate of how complete the TrainJob is as a percentage.
+	// The value will be between 0 and 100, or empty if unknown.
+	//
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=100
+	// +optional
+	ProgressPercentage *int32 `json:"progressPercentage,omitempty"`
+
+	// estimatedRemainingSeconds gives the estimated remaining training time in seconds
+	// before the train job is completed.
+	// The value will be empty if it is unknown.
+	//
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	EstimatedRemainingSeconds *int32 `json:"estimatedRemainingSeconds,omitempty"`
+
+	// metrics contains the current metrics for the model.
+	//
+	// +kubebuilder:validation:MaxItems=256
+	// +listType=atomic
+	// +optional
+	Metrics []Metric `json:"metrics,omitempty"`
+
+	// lastUpdatedTime is the timestamp when the runtime status was observed.
+	// +optional
+	LastUpdatedTime metav1.Time `json:"lastUpdatedTime,omitempty"`
+}
+
+type Metric struct {
+	// name is a user-defined label for the metric, e.g. "loss", "eval_accuracy".
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=64
+	// +required
+	Name string `json:"name,omitempty"`
+
+	// value of the metric. Values must be serialized as a string.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=64
+	// +required
+	Value string `json:"value,omitempty"`
+}
+
+// UpdateTrainJobStatusRequest contains the current runtime status (e.g. progress and metrics) for the different stages of the
+// TrainJob.
+type UpdateTrainJobStatusRequest struct {
+	// trainerStatus contains the latest observed runtime status of the
+	// Trainer step of the TrainJob. It reflects progress, remaining time,
+	// metrics, and the last update timestamp.
+	//
+	// This field is nil if the TrainJob does not report trainer-level
+	// status, or if no status has been observed yet (for example,
+	// immediately after the TrainJob is created).
+	//
+	// This is an alpha feature and requires enabling the TrainJobStatus feature gate.
+	// +optional
+	TrainerStatus *TrainerStatus `json:"trainerStatus,omitempty"`
 }
 
 func init() {
